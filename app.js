@@ -1,4 +1,4 @@
-// ========== SERVICE WORKER REGISTRATION :// ==========
+// Service Worker Registration
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js')
         .then(reg => {
@@ -11,7 +11,7 @@ if ('serviceWorker' in navigator) {
         });
 }
 
-// ========== INSTALL BUTTON FOR PWA ==========
+// Install button for PWA
 let deferredPrompt = null;
 const installBtn = document.getElementById('installBtn');
 
@@ -38,7 +38,7 @@ window.addEventListener('appinstalled', () => {
     deferredPrompt = null;
 });
 
-// ========== ONLINE/OFFLINE STATUS INDICATOR ==========
+// Online/Offline status indicator
 function updateStatusIndicator() {
     const indicator = document.getElementById('statusIndicator');
     if (!indicator) return;
@@ -56,29 +56,31 @@ window.addEventListener('online', updateStatusIndicator);
 window.addEventListener('offline', updateStatusIndicator);
 updateStatusIndicator();
 
-// ========== BIBLE DATA AND STATE MANAGEMENT ==========
+// Bible data management
 let bibleData = null;
 let currentBook = "";
 let currentChapter = "";
 
-// Map to sidebar grid elements
-const bookGrid = document.getElementById('book-grid');
-const chapterGrid = document.getElementById('chapter-grid');
+const bookSelect = document.getElementById('bookSelect');
+const chapterGrid = document.getElementById('chapter-grid'); // Linked to sidebar grid
 const content = document.getElementById('content');
 
-// ========== LOAD BIBLE DATA ==========
+// Load Bible data
 async function loadBibleData() {
     try {
         updateStatus('Loading Bible data...');
         
+        // Try to fetch from network first
         const response = await fetch('bible-kjv.json');
         if (!response.ok) throw new Error('Network response was not ok');
         
-        // Fix: Clone the stream so both JSON parsing and Cache Storage can read it
+        // Clone the response because .json() consumes the stream, 
+        // and we need to pass a fresh response stream to cache.put()
         const responseClone = response.clone();
         bibleData = await response.json();
         console.log('✓ Bible data loaded from network');
         
+        // Cache it immediately for offline use
         if ('caches' in window) {
             const cache = await caches.open('bible-v1');
             cache.put('bible-kjv.json', responseClone);
@@ -108,54 +110,38 @@ async function loadBibleData() {
     updateStatus('Ready - Select a book to read');
 }
 
-// ========== POPULATE BOOK SELECTION SIDE PANEL ==========
+// Populate books dropdown
 function populateBooks() {
-    if (!bibleData || !bookGrid) return;
+    if (!bibleData) return;
 
-    bookGrid.innerHTML = '';
     const books = Object.keys(bibleData);
+    bookSelect.innerHTML = '<option value="">Select a book...</option>';
     
     books.forEach(book => {
-        const btn = document.createElement('button');
-        btn.className = 'nav-btn book-btn';
-        btn.textContent = book;
-        btn.title = book; // Tooltip for small screen text cutoff
-        
-        btn.addEventListener('click', () => {
-            // Toggle highlight classes across the book choices
-            document.querySelectorAll('.book-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            
-            currentBook = book;
-            updateChapterGrid();
-        });
-        
-        bookGrid.appendChild(btn);
+        const option = document.createElement('option');
+        option.value = book;
+        option.textContent = book;
+        bookSelect.appendChild(option);
     });
-
-    // Auto-select the first book (Genesis) on application launch
-    if (bookGrid.firstChild) {
-        bookGrid.firstChild.click();
-    }
 }
 
-// ========== UPDATE CHAPTER LIST GRID IN SIDEBAR ==========
-function updateChapterGrid() {
-    if (!chapterGrid) return;
-    
+// Handle book selection -> Updates the Sidebar Chapter Grid
+bookSelect.addEventListener('change', (e) => {
+    currentBook = e.target.value;
     chapterGrid.innerHTML = ''; 
     content.innerHTML = '<div class="loading">Select a chapter from the grid to read.</div>';
 
     if (currentBook && bibleData && bibleData[currentBook]) {
+        // Handle both numeric sorting for array profiles and pure key variations
         const chapters = Object.keys(bibleData[currentBook]).map(Number).sort((a, b) => a - b);
         
         chapters.forEach(chapter => {
             const btn = document.createElement('button');
-            btn.className = 'nav-btn chap-btn';
+            btn.className = 'chap-btn';
             btn.textContent = chapter;
             
+            // Grid interaction setup
             btn.addEventListener('click', () => {
-                // Toggle highlight classes across the chapter choices
                 document.querySelectorAll('.chap-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 
@@ -166,14 +152,14 @@ function updateChapterGrid() {
             chapterGrid.appendChild(btn);
         });
 
-        // Automatically snap open Chapter 1 whenever switching books
+        // Automatically trigger Chapter 1 for quick reading flow
         if (chapterGrid.firstChild) {
             chapterGrid.firstChild.click();
         }
     }
-}
+});
 
-// ========== DISPLAY CHAPTER CONTENT TO MAIN READER COLUMN ==========
+// Display chapter content
 function displayChapter(book, chapter) {
     const chapterData = bibleData[book]?.[chapter];
     
@@ -182,14 +168,14 @@ function displayChapter(book, chapter) {
         return;
     }
 
-    let html = `<div class="chapter-title">${book} ${chapter}</div><div class="verses">`;
+    let html = `<div class="chapter-title"><h2>${book} ${chapter}</h2></div><hr style="border:0; border-top:1px solid #e5e5ea; margin-bottom:20px;"><div class="verses">`;
 
     if (Array.isArray(chapterData)) {
         chapterData.forEach((verse, index) => {
             const verseNumber = index + 1;
             html += `
-                <div class="verse">
-                    <span class="verse-number">${verseNumber}</span>
+                <div class="verse" style="margin-bottom: 12px; line-height: 1.7; font-size: 1.15rem;">
+                    <span class="verse-number" style="font-weight: bold; color: #8e8e93; margin-right: 6px; font-size: 0.85rem; vertical-align: super;">${verseNumber}</span>
                     <span class="verse-text">${escapeHtml(verse)}</span>
                 </div>
             `;
@@ -197,8 +183,8 @@ function displayChapter(book, chapter) {
     } else if (typeof chapterData === 'object') {
         Object.entries(chapterData).forEach(([verseNum, text]) => {
             html += `
-                <div class="verse">
-                    <span class="verse-number">${verseNum}</span>
+                <div class="verse" style="margin-bottom: 12px; line-height: 1.7; font-size: 1.15rem;">
+                    <span class="verse-number" style="font-weight: bold; color: #8e8e93; margin-right: 6px; font-size: 0.85rem; vertical-align: super;">${verseNum}</span>
                     <span class="verse-text">${escapeHtml(text)}</span>
                 </div>
             `;
@@ -206,35 +192,31 @@ function displayChapter(book, chapter) {
     }
 
     html += '</div>';
-    content.innerHTML = html;
     
-    // Smooth scroll the content pane back to top on chapter swap
-    const mainViewport = document.getElementById('main-content');
-    if (mainViewport) {
-        mainViewport.scrollTo(0, 0);
-    } else {
-        window.scrollTo(0, 0);
-    }
+    // Target the main reading viewport element or clear the page container fallback
+    const mainViewport = document.getElementById('main-content') || window;
+    content.innerHTML = html;
+    mainViewport.scrollTo(0, 0);
     
     updateStatus(`Displaying ${book} ${chapter}`);
 }
 
-// ========== UTILITY: ESCAPE HTML TO PREVENT XSS ==========
+// Utility: Escape HTML to prevent XSS
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-// ========== UPDATE STATUS MESSAGE ==========
+// Update status message
 function updateStatus(message) {
     const statusEl = document.getElementById('status');
     if (statusEl) statusEl.textContent = message;
 }
 
-// ========== INITIALIZE ON PAGE LOAD ==========
+// Initialize on page load
 window.addEventListener('load', loadBibleData);
 
-// ========== LOG WHEN OFFLINE/ONLINE ==========
+// Log when offline/online
 window.addEventListener('online', () => console.log('✓ Back online'));
 window.addEventListener('offline', () => console.log('⚠ Gone offline'));
